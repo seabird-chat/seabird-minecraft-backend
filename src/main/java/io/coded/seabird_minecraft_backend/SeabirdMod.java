@@ -125,7 +125,7 @@ public class SeabirdMod implements ModInitializer, Runnable {
         this.outgoingQueue.push(event);
     }
 
-    private void onPlayerJoined(UUID uuid, String sender) {
+    private void onPlayerJoined(String sender) {
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()

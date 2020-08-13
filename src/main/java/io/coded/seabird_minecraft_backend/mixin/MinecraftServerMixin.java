@@ -28,7 +28,7 @@ public class MinecraftServerMixin {
 
         String key = text.getKey();
 
-        // We special case player death messages because there are so many of them.œ
+        // We special case player death messages because there are so many of them.
         if (key.startsWith("death.attack.")) {
             this.handleDeath(text);
             return;
@@ -116,7 +116,7 @@ public class MinecraftServerMixin {
 
         ServerPlayerEntity player = this.lookupPlayer(sender);
 
-        PlayerJoinedCallback.EVENT.invoker().joined(player.getUuid(), player.getGameProfile().getName());
+        PlayerJoinedCallback.EVENT.invoker().joined(sender);
 
         // this.printArgs(text);
     }
@@ -145,7 +145,7 @@ public class MinecraftServerMixin {
 
     private void handleEmote(TranslatableText text) {
         Object[] args = text.getArgs();
-        if (args.length != 1) {
+        if (args.length != 2) {
             LOGGER.warn("Unexpected number of args");
             return;
         }
@@ -178,7 +178,8 @@ public class MinecraftServerMixin {
         }
 
         String sender = ((LiteralText) args[0]).getString();
-        String advancement = ((LiteralText) args[0]).getString();
+        String advancement = text.getString();
+        //String advancement = args[1];
 
         ServerPlayerEntity player = this.lookupPlayer(sender);
 
