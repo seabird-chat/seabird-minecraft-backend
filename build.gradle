@@ -41,7 +41,7 @@ dependencies {
 	shade "io.grpc:grpc-netty-shaded:${grpcVersion}"
 	shade "com.google.guava:guava:29.0-jre"
 
-	modCompile "javax.annotation:javax.annotation-api:1.3.2"
+	shade "javax.annotation:javax.annotation-api:1.3.2"
 }
 
 protobuf {
@@ -105,6 +105,8 @@ shadowJar {
 	relocate "google", "io.coded.google"
 	relocate "org.checkerframework", "io.coded.org.checkerframework"
 	relocate "io.grpc", "io.coded.io.grpc"
+
+    relocate "javax", "io.coded.javax"
 }
 
 // configure the maven publication

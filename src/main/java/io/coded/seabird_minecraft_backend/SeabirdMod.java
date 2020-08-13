@@ -10,7 +10,7 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.event.server.ServerStartCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.network.MessageType;
 import net.minecraft.network.Packet;
@@ -55,14 +55,13 @@ public class SeabirdMod implements ModInitializer, Runnable {
         Thread newThread = new Thread(this, "Seabird gRPC Client");
         newThread.start();
 
-        // We only need ServerStartCallback when the FabricLoader is broken.
-        if (!this.setServer(FabricLoader.getInstance().getGameInstance())) {
-            ServerStartCallback.EVENT.register((server) -> {
-                if (!this.setServer(server)) {
-                    LOGGER.fatal("server start didn't return a usable server");
-                }
-            });
-        }
+        // This is unfortunately the sanctioned way to get the server instance now that similar
+        // APIs in FabricLoader are considered unstable/deprecated.
+        ServerLifecycleEvents.SERVER_STARTING.register((server) -> {
+            if (!this.setServer(server)) {
+                LOGGER.fatal("server start didn't return a usable server");
+            }
+        });
 
         AdvancementCallback.EVENT.register(this::onAdvancement);
         EmoteCallback.EVENT.register(this::onEmote);
@@ -172,7 +171,7 @@ public class SeabirdMod implements ModInitializer, Runnable {
         while (true) {
             try {
                 LOGGER.info("Connecting to Seabird Core at {}:{}", this.config.seabirdHost, this.config.seabirdPort);
-                ManagedChannel channel = ManagedChannelBuilder.forAddress(this.config.seabirdHost, this.config.seabirdPort).usePlaintext().build();
+                ManagedChannel channel = ManagedChannelBuilder.forAddress(this.config.seabirdHost, this.config.seabirdPort).useTransportSecurity().build();
 
                 ChatIngestGrpc.ChatIngestStub stub = ChatIngestGrpc.newStub(channel)
                         .withCallCredentials(new AccessTokenCallCredentials(config.seabirdToken));
