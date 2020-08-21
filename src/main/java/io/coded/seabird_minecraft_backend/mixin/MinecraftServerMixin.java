@@ -114,7 +114,7 @@ public class MinecraftServerMixin {
 
         String sender = ((LiteralText) args[0]).getString();
 
-        ServerPlayerEntity player = this.lookupPlayer(sender);
+        // ServerPlayerEntity player = this.lookupPlayer(sender);
 
         PlayerJoinedCallback.EVENT.invoker().joined(sender);
 

@@ -7,12 +7,10 @@ import java.util.UUID;
 
 public interface AdvancementCallback {
     Event<AdvancementCallback> EVENT = EventFactory.createArrayBacked(AdvancementCallback.class,
-            (listeners) -> {
-                return (uuid, sender, advancement) -> {
-                    for (AdvancementCallback event : listeners) {
-                        event.advancement(uuid, sender, advancement);
-                    }
-                };
+            (listeners) -> (uuid, sender, advancement) -> {
+                for (AdvancementCallback event : listeners) {
+                    event.advancement(uuid, sender, advancement);
+                }
             }
     );
 

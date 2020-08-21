@@ -7,12 +7,10 @@ import java.util.UUID;
 
 public interface EmoteCallback {
     Event<EmoteCallback> EVENT = EventFactory.createArrayBacked(EmoteCallback.class,
-            (listeners) -> {
-                return (uuid, sender, action) -> {
-                    for (EmoteCallback event : listeners) {
-                        event.emote(uuid, sender, action);
-                    }
-                };
+            (listeners) -> (uuid, sender, action) -> {
+                for (EmoteCallback event : listeners) {
+                    event.emote(uuid, sender, action);
+                }
             }
     );
 

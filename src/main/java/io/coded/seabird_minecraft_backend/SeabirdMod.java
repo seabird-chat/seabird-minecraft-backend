@@ -24,13 +24,12 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.FileReader;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.UUID;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
 public class SeabirdMod implements ModInitializer, Runnable {
-    class Config {
+    static class Config {
         String seabirdHost;
         int seabirdPort;
         String seabirdToken;
@@ -41,7 +40,7 @@ public class SeabirdMod implements ModInitializer, Runnable {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
-    LinkedBlockingDeque<Object> outgoingQueue = new LinkedBlockingDeque();
+    LinkedBlockingDeque<Object> outgoingQueue = new LinkedBlockingDeque<>();
 
     MinecraftDedicatedServer server;
 
@@ -168,6 +167,7 @@ public class SeabirdMod implements ModInitializer, Runnable {
     public void run() {
         SeabirdMod plugin = this;
 
+        //noinspection InfiniteLoopStatement
         while (true) {
             try {
                 LOGGER.info("Connecting to Seabird Core at {}:{}", this.config.seabirdHost, this.config.seabirdPort);
@@ -181,19 +181,17 @@ public class SeabirdMod implements ModInitializer, Runnable {
                     public void onNext(SeabirdChatIngest.ChatRequest event) {
                         boolean success = false;
 
-                        switch (event.getInnerCase()) {
-                            // This backend only supports SEND_MESSAGE.
-                            case SEND_MESSAGE:
-                                SeabirdChatIngest.SendMessageChatRequest req = event.getSendMessage();
+                        // This backend only supports SEND_MESSAGE.
+                        if (event.getInnerCase() == SeabirdChatIngest.ChatRequest.InnerCase.SEND_MESSAGE) {
+                            SeabirdChatIngest.SendMessageChatRequest req = event.getSendMessage();
 
-                                Text text = new TranslatableText("chat.type.announcement", "seabird", req.getText());
-                                Packet<ClientPlayPacketListener> packet = new GameMessageS2CPacket(text, MessageType.CHAT, new UUID(0, 0));
-                                plugin.server.getPlayerManager().sendToAll(packet);
+                            Text text = new TranslatableText("chat.type.announcement", "seabird", req.getText());
+                            Packet<ClientPlayPacketListener> packet = new GameMessageS2CPacket(text, MessageType.CHAT, new UUID(0, 0));
+                            plugin.server.getPlayerManager().sendToAll(packet);
 
-                                success = true;
-                                break;
-                            default:
-                                LOGGER.warn("Unknown or unsupported request type");
+                            success = true;
+                        } else {
+                            LOGGER.warn("Unknown or unsupported request type");
                         }
 
                         // If the event needed a response, make sure we respond.
@@ -246,7 +244,7 @@ public class SeabirdMod implements ModInitializer, Runnable {
                 LOGGER.warn("Lost connection to Seabird Core, restarting connection in 1 second.");
                 SeabirdMod.sleepNoFail(1000);
             } catch (Throwable e) {
-                LOGGER.warn("Exception while handling gRPC connection, restarting connection in 1 second: {}", e);
+                LOGGER.warn("Exception while handling gRPC connection, restarting connection in 1 second: {}", (Object) e);
                 SeabirdMod.sleepNoFail(1000);
             }
         }
@@ -256,7 +254,7 @@ public class SeabirdMod implements ModInitializer, Runnable {
         try {
             Gson gson = new Gson();
 
-            Path configPath = Paths.get(FabricLoader.getInstance().getConfigDirectory().getAbsolutePath(), "seabird-minecraft-backend.json");
+            Path configPath = FabricLoader.getInstance().getConfigDir().resolve("seabird-minecraft-backend.json");
 
             Config config = gson.fromJson(new FileReader(configPath.toString()), Config.class);
 
@@ -281,7 +279,7 @@ public class SeabirdMod implements ModInitializer, Runnable {
 
             this.config = config;
         } catch (Exception e) {
-            LOGGER.fatal("failed to load config: {}", e);
+            LOGGER.fatal("failed to load config: {}", (Object) e);
         }
     }
 

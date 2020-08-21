@@ -5,12 +5,10 @@ import net.fabricmc.fabric.api.event.EventFactory;
 
 public interface SystemMessageCallback {
     Event<SystemMessageCallback> EVENT = EventFactory.createArrayBacked(SystemMessageCallback.class,
-            (listeners) -> {
-                return (sender, text) -> {
-                    for (SystemMessageCallback event : listeners) {
-                        event.systemMessage(sender, text);
-                    }
-                };
+            (listeners) -> (sender, text) -> {
+                for (SystemMessageCallback event : listeners) {
+                    event.systemMessage(sender, text);
+                }
             }
     );
 

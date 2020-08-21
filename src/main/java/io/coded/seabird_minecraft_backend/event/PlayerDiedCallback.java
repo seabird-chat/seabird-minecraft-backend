@@ -7,12 +7,10 @@ import java.util.UUID;
 
 public interface PlayerDiedCallback {
     Event<PlayerDiedCallback> EVENT = EventFactory.createArrayBacked(PlayerDiedCallback.class,
-            (listeners) -> {
-                return (uuid, sender, text) -> {
-                    for (PlayerDiedCallback event : listeners) {
-                        event.death(uuid, sender, text);
-                    }
-                };
+            (listeners) -> (uuid, sender, text) -> {
+                for (PlayerDiedCallback event : listeners) {
+                    event.death(uuid, sender, text);
+                }
             }
     );
 

@@ -7,12 +7,10 @@ import java.util.UUID;
 
 public interface MessageCallback {
     Event<MessageCallback> EVENT = EventFactory.createArrayBacked(MessageCallback.class,
-            (listeners) -> {
-                return (uuid, sender, text) -> {
-                    for (MessageCallback event : listeners) {
-                        event.message(uuid, sender, text);
-                    }
-                };
+            (listeners) -> (uuid, sender, text) -> {
+                for (MessageCallback event : listeners) {
+                    event.message(uuid, sender, text);
+                }
             }
     );
 

@@ -7,12 +7,10 @@ import java.util.UUID;
 
 public interface PlayerLeftCallback {
     Event<PlayerLeftCallback> EVENT = EventFactory.createArrayBacked(PlayerLeftCallback.class,
-            (listeners) -> {
-                return (uuid, sender) -> {
-                    for (PlayerLeftCallback event : listeners) {
-                        event.left(uuid, sender);
-                    }
-                };
+            (listeners) -> (uuid, sender) -> {
+                for (PlayerLeftCallback event : listeners) {
+                    event.left(uuid, sender);
+                }
             }
     );
 

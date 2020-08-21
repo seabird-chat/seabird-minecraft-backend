@@ -7,12 +7,10 @@ import java.util.UUID;
 
 public interface PlayerJoinedCallback {
     Event<PlayerJoinedCallback> EVENT = EventFactory.createArrayBacked(PlayerJoinedCallback.class,
-            (listeners) -> {
-                return (sender) -> {
-                    for (PlayerJoinedCallback event : listeners) {
-                        event.joined(sender);
-                    }
-                };
+            (listeners) -> (sender) -> {
+                for (PlayerJoinedCallback event : listeners) {
+                    event.joined(sender);
+                }
             }
     );
 
