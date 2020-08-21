@@ -29,7 +29,9 @@ public class MinecraftServerMixin {
         String key = text.getKey();
 
         // We special case player death messages because there are so many of them.
-        if (key.startsWith("death.attack.")) {
+        //
+        // NOTE: death event handling should be bulletproofed.
+        if (key.startsWith("death.")) {
             this.handleDeath(text);
             return;
         }
