@@ -36,10 +36,12 @@ public class MinecraftServerMixin {
             return;
         }
 
+        if (key.startsWith("chat.type.advancement.")) {
+            this.handleAdvancement(text);
+            return;
+        }
+
         switch (key) {
-            case "chat.type.advancement.task":
-                this.handleAdvancement(text);
-                break;
             case "chat.type.announcement":
                 this.handleAnnouncement(text);
                 break;
