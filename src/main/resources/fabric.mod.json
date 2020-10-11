@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "modid",
+  "id": "seabird-minecraft-backend",
   "version": "${version}",
 
   "name": "Seabird Minecraft Backend",
@@ -23,7 +23,7 @@
     ]
   },
   "mixins": [
-    "modid.mixins.json"
+    "seabird-minecraft-backend.mixins.json"
   ],
 
   "depends": {

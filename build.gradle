@@ -114,11 +114,10 @@ shadowJar {
 }
 
 // This task needs to be used rather than shadowJar or jar, or various problems will happen.
-task remapShadowJar(type: RemapJarTask) {
-    input = shadowJar.archivePath
+task remapShadowJar(type: RemapJarTask, dependsOn: tasks.shadowJar) {
+    input = tasks.shadowJar.archivePath
     addNestedDependencies = true
 }
-tasks.remapShadowJar.dependsOn tasks.shadowJar
 
 // configure the maven publication
 publishing {
