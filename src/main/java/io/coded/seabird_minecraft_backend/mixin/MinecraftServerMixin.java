@@ -57,6 +57,11 @@ public class MinecraftServerMixin {
             case "multiplayer.player.left":
                 this.handlePlayerLeft(text);
                 break;
+
+            // Skip admin text
+            case "chat.type.admin":
+                break;
+
             default:
                 System.out.println("UNKNOWN KEY: " + text.getKey());
                 this.printArgs(text);
