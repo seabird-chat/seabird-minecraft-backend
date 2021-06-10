@@ -1,0 +1,56 @@
+plugins {
+    id "com.google.protobuf" version "0.8.12"
+    id "java"
+}
+
+dependencies {
+    // We depend on fabric loader here to use the fabric @Environment annotations and get the mixin dependencies
+    // Do NOT use other classes from fabric loader
+    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+    // Remove the next line if you don't want to depend on the API
+    modApi "me.shedaniel:architectury:${rootProject.architectury_version}"
+
+    // Protobuf/gRPC dependencies - we specify these as dependencies
+    // here, but they're included in the jar in both the fabric and
+    // forge sub-projects.
+    implementation "io.grpc:grpc-protobuf:${rootProject.grpc_version}"
+    implementation "io.grpc:grpc-stub:${rootProject.grpc_version}"
+    implementation "io.grpc:grpc-netty-shaded:${rootProject.grpc_version}"
+    implementation "com.google.guava:guava:29.0-jre"
+}
+
+architectury {
+    common()
+}
+
+protobuf {
+    protoc { artifact = "com.google.protobuf:protoc:${rootProject.protoc_version}" }
+    plugins {
+        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${rootProject.grpc_version}" }
+    }
+    generateProtoTasks {
+        all()*.plugins { grpc {} }
+    }
+}
+
+java {
+    withSourcesJar()
+}
+
+publishing {
+    publications {
+        mavenCommon(MavenPublication) {
+            artifactId = rootProject.archives_base_name
+            // add all the jars that should be included when publishing to maven
+            artifact remapJar
+            artifact(sourcesJar) {
+                builtBy remapSourcesJar
+            }
+        }
+    }
+
+    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
+    repositories {
+        // Add repositories to publish to here.
+    }
+}

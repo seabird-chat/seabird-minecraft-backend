@@ -1,8 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "seabird-minecraft-backend",
+  "id": "seabird_minecraft_backend",
   "version": "${version}",
-
   "name": "Seabird Minecraft Backend",
   "description": "A chat backend to export a Minecraft server as a chat channel",
   "authors": [
@@ -10,26 +9,21 @@
   ],
   "contact": {
     "homepage": "https://github.com/seabird-chat/",
-    "sources": "https://github.com/seabird-chat/seabird-minecraft-backend"
+    "sources": "https://github.com/seabird-chat/seabird-minecraft-backend/"
   },
-
   "license": "MIT",
   "icon": "assets/modid/icon.png",
-
   "environment": "*",
   "entrypoints": {
     "main": [
-      "io.coded.seabird_minecraft_backend.SeabirdMod"
+      "io.coded.seabird_minecraft_backend.SeabirdModFabric"
     ]
   },
-  "mixins": [
-    "seabird-minecraft-backend.mixins.json"
-  ],
-
   "depends": {
     "fabricloader": ">=0.7.4",
     "fabric": "*",
-    "minecraft": "1.16.x"
+    "minecraft": "1.16.*",
+    "architectury": ">=1.1.55"
   },
   "suggests": {
     "flamingo": "*"
