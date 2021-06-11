@@ -1,5 +1,5 @@
 plugins {
-    id "com.github.johnrengelman.shadow" version "5.0.0"
+    id "com.github.johnrengelman.shadow" version "7.0.0"
 }
 
 configurations {
@@ -20,6 +20,10 @@ dependencies {
     // Protobuf/gRPC dependencies - these are used in common, but we
     // need to shadow these so they don't conflict with the built-in
     // libraries.
+    implementation "io.grpc:grpc-protobuf:${rootProject.grpc_version}"
+    implementation "io.grpc:grpc-stub:${rootProject.grpc_version}"
+    implementation "io.grpc:grpc-netty-shaded:${rootProject.grpc_version}"
+    implementation "com.google.guava:guava:29.0-jre"
     shadowCommon "io.grpc:grpc-protobuf:${rootProject.grpc_version}"
     shadowCommon "io.grpc:grpc-stub:${rootProject.grpc_version}"
     shadowCommon "io.grpc:grpc-netty-shaded:${rootProject.grpc_version}"

@@ -2,6 +2,7 @@ package io.coded.seabird_minecraft_backend;
 
 import me.shedaniel.architectury.platform.forge.EventBuses;
 import io.coded.seabird_minecraft_backend.SeabirdMod;
+import net.minecraftforge.common.ForgeHooks;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 

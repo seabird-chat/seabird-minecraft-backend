@@ -1,8 +1,12 @@
 package io.coded.seabird_minecraft_backend;
 
 import com.google.gson.Gson;
+import io.coded.seabird.chat_ingest.ChatIngestGrpc;
 import io.coded.seabird.chat_ingest.SeabirdChatIngest;
 import io.coded.seabird.common.Common;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.stub.StreamObserver;
 import me.shedaniel.architectury.event.events.ChatEvent;
 import me.shedaniel.architectury.event.events.EntityEvent;
 import me.shedaniel.architectury.event.events.PlayerEvent;
@@ -28,6 +32,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.FileReader;
 import java.nio.file.Path;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 
 public class SeabirdMod {
     public static final String MOD_ID = "seabird_minecraft_backend";
@@ -48,13 +53,16 @@ public class SeabirdMod {
     public static void init() {
         System.out.println("Hello World");
 
+        Thread grpcThread = new Thread(SeabirdMod::runGrpc, "Seabird gRPC Client");
+        grpcThread.start();
+
         PlayerEvent.PLAYER_JOIN.register(SeabirdMod::onPlayerJoined);
         PlayerEvent.PLAYER_QUIT.register(SeabirdMod::onPlayerLeft);
         PlayerEvent.PLAYER_ADVANCEMENT.register(SeabirdMod::onAdvancement);
 
         EntityEvent.LIVING_DEATH.register((entity, source) -> {
             if (entity instanceof Player) {
-                SeabirdMod.onPlayerDied((Player)entity, source);
+                SeabirdMod.onPlayerDied((Player) entity, source);
             }
             return InteractionResult.PASS;
         });
@@ -128,12 +136,6 @@ public class SeabirdMod {
     }
 
     private static void onPlayerJoined(ServerPlayer player) {
-        MinecraftServer server = GameInstance.getServer();
-
-        Component component = new TranslatableComponent("chat.type.announcement", "seabird", "hello world");
-        Packet<ClientGamePacketListener> packet = new ClientboundChatPacket(component, ChatType.CHAT, Util.NIL_UUID);
-        server.getPlayerList().broadcastAll(packet);
-
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
@@ -160,6 +162,9 @@ public class SeabirdMod {
     }
 
     public static void onMessage(ServerPlayer player, String message, Component component) {
+        LOGGER.warn("Message: {}", message);
+        LOGGER.warn("Component: {}", component);
+
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
@@ -196,6 +201,101 @@ public class SeabirdMod {
                         .setText(text)).build();
 
         SeabirdMod.outgoingQueue.push(event);
+    }
+
+    public static void runGrpc() {
+        //noinspection InfiniteLoopStatement
+        while (true) {
+            try {
+                LOGGER.info("Connecting to Seabird Core at {}:{}", SeabirdMod.config.seabirdHost, SeabirdMod.config.seabirdPort);
+                ManagedChannel channel = ManagedChannelBuilder.forAddress(SeabirdMod.config.seabirdHost, SeabirdMod.config.seabirdPort).useTransportSecurity().build();
+
+                ChatIngestGrpc.ChatIngestStub stub = ChatIngestGrpc.newStub(channel)
+                        .withCallCredentials(new AccessTokenCallCredentials(config.seabirdToken));
+
+                StreamObserver<SeabirdChatIngest.ChatEvent> output = stub.ingestEvents(new StreamObserver<SeabirdChatIngest.ChatRequest>() {
+                    @Override
+                    public void onNext(SeabirdChatIngest.ChatRequest event) {
+                        boolean success = false;
+
+                        // This backend only supports SEND_MESSAGE.
+                        if (event.getInnerCase() == SeabirdChatIngest.ChatRequest.InnerCase.SEND_MESSAGE) {
+                            SeabirdChatIngest.SendMessageChatRequest req = event.getSendMessage();
+                            SeabirdMod.sendToAll("chat.type.announcement", "seabird", req.getText());
+                            success = true;
+                        } else {
+                            LOGGER.warn("Unknown or unsupported request type");
+                        }
+
+                        // If the event needed a response, make sure we respond.
+                        String id = event.getId();
+                        if (!id.equals("")) {
+                            if (success) {
+                                SeabirdMod.outgoingQueue.push(SeabirdChatIngest.ChatEvent.newBuilder().setId(id).setSuccess(SeabirdChatIngest.SuccessChatEvent.newBuilder()).build());
+                            } else {
+                                SeabirdMod.outgoingQueue.push(SeabirdChatIngest.ChatEvent.newBuilder().setId(id).setFailed(SeabirdChatIngest.FailedChatEvent.newBuilder()).build());
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+                        SeabirdMod.outgoingQueue.push(t);
+                    }
+
+                    @Override
+                    public void onCompleted() {
+                        SeabirdMod.outgoingQueue.push(new Error("seabird-core ended the stream"));
+                    }
+                });
+
+                try {
+                    // Send the first hello event.
+                    output.onNext(
+                            SeabirdChatIngest.ChatEvent.newBuilder()
+                                    .setHello(SeabirdChatIngest.HelloChatEvent.newBuilder()
+                                            .setBackendInfo(Common.Backend.newBuilder()
+                                                    .setType("minecraft").setId(config.backendId))).build());
+
+                    while (true) {
+                        // Now that we're here, we need to wait for items on the queue, and push them out as chat events.
+                        Object event = SeabirdMod.outgoingQueue.take();
+
+                        if (event instanceof SeabirdChatIngest.ChatEvent) {
+                            output.onNext((SeabirdChatIngest.ChatEvent) event);
+                        } else if (event instanceof Throwable) {
+                            throw (Throwable) event;
+                        } else {
+                            throw new Error(String.format("Unknown event type: %s", event));
+                        }
+                    }
+                } finally {
+                    channel.shutdown();
+                    channel.awaitTermination(1, TimeUnit.SECONDS);
+                }
+            } catch (InterruptedException e) {
+                LOGGER.warn("Lost connection to Seabird Core, restarting connection in 1 second.");
+                SeabirdMod.sleepNoFail(1000);
+            } catch (Throwable e) {
+                LOGGER.warn("Exception while handling gRPC connection, restarting connection in 1 second: {}", (Object) e);
+                SeabirdMod.sleepNoFail(1000);
+            }
+        }
+    }
+
+    private static void sendToAll(String key, Object... args) {
+        MinecraftServer server = GameInstance.getServer();
+        Component component = new TranslatableComponent(key, args);
+        Packet<ClientGamePacketListener> packet = new ClientboundChatPacket(component, ChatType.CHAT, Util.NIL_UUID);
+        server.getPlayerList().broadcastAll(packet);
+    }
+
+    static void sleepNoFail(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (Exception e) {
+            LOGGER.warn("Exception while sleeping: %s", e);
+        }
     }
 }
 
