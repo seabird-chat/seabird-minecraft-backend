@@ -1,6 +1,10 @@
 package io.coded.seabird_minecraft_backend;
 
 import com.google.gson.Gson;
+import com.mojang.brigadier.ParseResults;
+import com.mojang.brigadier.context.CommandContextBuilder;
+import com.mojang.brigadier.context.ParsedCommandNode;
+import com.mojang.brigadier.tree.CommandNode;
 import io.coded.seabird.chat_ingest.ChatIngestGrpc;
 import io.coded.seabird.chat_ingest.SeabirdChatIngest;
 import io.coded.seabird.common.Common;
@@ -8,12 +12,14 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import me.shedaniel.architectury.event.events.ChatEvent;
+import me.shedaniel.architectury.event.events.CommandPerformEvent;
 import me.shedaniel.architectury.event.events.EntityEvent;
 import me.shedaniel.architectury.event.events.PlayerEvent;
 import me.shedaniel.architectury.platform.Platform;
 import me.shedaniel.architectury.utils.GameInstance;
 import net.minecraft.Util;
 import net.minecraft.advancements.Advancement;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.ChatType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TranslatableComponent;
@@ -25,36 +31,31 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.FileReader;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
 public class SeabirdMod {
     public static final String MOD_ID = "seabird_minecraft_backend";
-
-    static class Config {
-        String seabirdHost;
-        int seabirdPort;
-        String seabirdToken;
-        String backendId;
-        String backendChannel;
-        String systemDisplayName;
-    }
-
     static final Logger LOGGER = LogManager.getLogger();
     static Config config = SeabirdMod.readConfig();
     static LinkedBlockingDeque<Object> outgoingQueue = new LinkedBlockingDeque<>();
 
     public static void init() {
-        System.out.println("Hello World");
-
         Thread grpcThread = new Thread(SeabirdMod::runGrpc, "Seabird gRPC Client");
         grpcThread.start();
+
+        CommandPerformEvent.EVENT.register((command) -> {
+            SeabirdMod.onCommand(command);
+            return InteractionResult.PASS;
+        });
 
         PlayerEvent.PLAYER_JOIN.register(SeabirdMod::onPlayerJoined);
         PlayerEvent.PLAYER_QUIT.register(SeabirdMod::onPlayerLeft);
@@ -108,6 +109,12 @@ public class SeabirdMod {
     }
 
     private static void onAdvancement(ServerPlayer player, Advancement advancement) {
+        // Recipes are reported as advancements, but we don't care about them - the easiest way to check for them is to
+        // look for an id starting with minecraft:recipes/ or check if the DisplayInfo is null.
+        if (advancement.getDisplay() == null) {
+            return;
+        }
+
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
@@ -115,7 +122,11 @@ public class SeabirdMod {
                                 .setUser(Common.User.newBuilder()
                                         .setId("SYSTEM")
                                         .setDisplayName(SeabirdMod.config.systemDisplayName)))
-                        .setText(advancement.getChatComponent().getString())).build();
+                        .setText(String.format(
+                                "%s has made the advancement %s.",
+                                player.getScoreboardName(),
+                                advancement.getChatComponent().getString()
+                        ))).build();
 
         SeabirdMod.outgoingQueue.push(event);
     }
@@ -162,9 +173,6 @@ public class SeabirdMod {
     }
 
     public static void onMessage(ServerPlayer player, String message, Component component) {
-        LOGGER.warn("Message: {}", message);
-        LOGGER.warn("Component: {}", component);
-
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
@@ -177,7 +185,40 @@ public class SeabirdMod {
         SeabirdMod.outgoingQueue.push(event);
     }
 
-    public static void onEmote(ServerPlayer player, String message, Component component) {
+    private static void onCommand(CommandPerformEvent event) {
+        ParseResults<CommandSourceStack> results = event.getResults();
+        CommandContextBuilder<CommandSourceStack> ctx = results.getContext();
+
+        List<ParsedCommandNode<CommandSourceStack>> nodes = ctx.getNodes();
+
+        // Normally we'd check for 1, but because what we need only has 2 arguments (a literal and a command argument),
+        // we can take a shortcut.
+        if (nodes.size() < 2) {
+            return;
+        }
+
+        CommandSourceStack src = ctx.getSource();
+
+        String commandName = nodes.get(0).getNode().getName();
+        String argument = nodes.get(1).getRange().get(results.getReader());
+
+        switch (commandName) {
+            case "me":
+                Entity entity = src.getEntity();
+                if (entity == null || !(entity instanceof ServerPlayer)) {
+                    return;
+                }
+                ServerPlayer player = (ServerPlayer) entity;
+
+                onEmote(player, argument);
+                return;
+            case "say":
+                onSystemMessage(src.getDisplayName().getString(), argument);
+                return;
+        }
+    }
+
+    public static void onEmote(ServerPlayer player, String message) {
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setAction(Common.ActionEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
@@ -296,6 +337,15 @@ public class SeabirdMod {
         } catch (Exception e) {
             LOGGER.warn("Exception while sleeping: %s", e);
         }
+    }
+
+    static class Config {
+        String seabirdHost;
+        int seabirdPort;
+        String seabirdToken;
+        String backendId;
+        String backendChannel;
+        String systemDisplayName;
     }
 }
 
