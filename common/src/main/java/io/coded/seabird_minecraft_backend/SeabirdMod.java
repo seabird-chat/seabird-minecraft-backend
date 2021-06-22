@@ -5,18 +5,19 @@ import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.context.CommandContextBuilder;
 import com.mojang.brigadier.context.ParsedCommandNode;
 import com.mojang.brigadier.tree.CommandNode;
+import dev.architectury.event.EventResult;
 import io.coded.seabird.chat_ingest.ChatIngestGrpc;
 import io.coded.seabird.chat_ingest.SeabirdChatIngest;
 import io.coded.seabird.common.Common;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import me.shedaniel.architectury.event.events.ChatEvent;
-import me.shedaniel.architectury.event.events.CommandPerformEvent;
-import me.shedaniel.architectury.event.events.EntityEvent;
-import me.shedaniel.architectury.event.events.PlayerEvent;
-import me.shedaniel.architectury.platform.Platform;
-import me.shedaniel.architectury.utils.GameInstance;
+import dev.architectury.event.events.common.ChatEvent;
+import dev.architectury.event.events.common.CommandPerformEvent;
+import dev.architectury.event.events.common.EntityEvent;
+import dev.architectury.event.events.common.PlayerEvent;
+import dev.architectury.platform.Platform;
+import dev.architectury.utils.GameInstance;
 import net.minecraft.Util;
 import net.minecraft.advancements.Advancement;
 import net.minecraft.commands.CommandSourceStack;
@@ -54,7 +55,7 @@ public class SeabirdMod {
 
         CommandPerformEvent.EVENT.register((command) -> {
             SeabirdMod.onCommand(command);
-            return InteractionResult.PASS;
+            return EventResult.pass();
         });
 
         PlayerEvent.PLAYER_JOIN.register(SeabirdMod::onPlayerJoined);
@@ -65,12 +66,12 @@ public class SeabirdMod {
             if (entity instanceof Player) {
                 SeabirdMod.onPlayerDied((Player) entity, source);
             }
-            return InteractionResult.PASS;
+            return EventResult.pass();
         });
 
         ChatEvent.SERVER.register((player, message, component) -> {
-            SeabirdMod.onMessage(player, message, component);
-            return InteractionResultHolder.pass(component);
+            SeabirdMod.onMessage(player, message.getRaw(), component);
+            return EventResult.pass();
         });
     }
 
@@ -172,7 +173,7 @@ public class SeabirdMod {
         SeabirdMod.outgoingQueue.push(event);
     }
 
-    public static void onMessage(ServerPlayer player, String message, Component component) {
+    public static void onMessage(ServerPlayer player, String message, ChatEvent.ChatComponent component) {
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
