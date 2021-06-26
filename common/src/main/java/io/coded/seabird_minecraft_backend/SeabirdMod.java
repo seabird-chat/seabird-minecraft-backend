@@ -20,6 +20,7 @@ import dev.architectury.platform.Platform;
 import dev.architectury.utils.GameInstance;
 import net.minecraft.Util;
 import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.ChatType;
 import net.minecraft.network.chat.Component;
@@ -112,7 +113,11 @@ public class SeabirdMod {
     private static void onAdvancement(ServerPlayer player, Advancement advancement) {
         // Recipes are reported as advancements, but we don't care about them - the easiest way to check for them is to
         // look for an id starting with minecraft:recipes/ or check if the DisplayInfo is null.
-        if (advancement.getDisplay() == null) {
+        //
+        // Additionally, we need to make sure this is something we should announce in chat, otherwise VanillaTweaks
+        // displays empty advancements all the time.
+        DisplayInfo display = advancement.getDisplay();
+        if (display == null || !display.shouldAnnounceChat()) {
             return;
         }
 
