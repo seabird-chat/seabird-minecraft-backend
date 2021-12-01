@@ -1,141 +1,56 @@
-import net.fabricmc.loom.task.RemapJarTask
-
 plugins {
-	id 'fabric-loom' version '0.4-SNAPSHOT'
-	id 'com.google.protobuf' version "0.8.12"
-	id 'com.github.johnrengelman.shadow' version '6.0.0'
-	id 'maven-publish'
-	id 'java'
+    id "architectury-plugin" version "3.2-SNAPSHOT"
+    id "dev.architectury.loom" version "0.9.0-SNAPSHOT" apply false
 }
 
-configurations {
-	shade
-	compile.extendsFrom shade
+architectury {
+    minecraft = rootProject.minecraft_version
 }
 
-sourceCompatibility = JavaVersion.VERSION_1_8
-targetCompatibility = JavaVersion.VERSION_1_8
+subprojects {
+    apply plugin: "java"
+    apply plugin: "dev.architectury.loom"
+    apply plugin: "architectury-plugin"
+    apply plugin: "maven-publish"
 
-archivesBaseName = project.archives_base_name
-version = project.mod_version
-group = project.maven_group
+    archivesBaseName = rootProject.archives_base_name
+    version = rootProject.mod_version
+    group = rootProject.maven_group
 
-def grpcVersion = '1.31.0'
-def protobufVersion = '3.12.4'
-def protocVersion = protobufVersion
+    loom {
+        silentMojangMappingsLicense()
+    }
 
-dependencies {
-	//to change the versions see the gradle.properties file
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    repositories {
+        // Add repositories to retrieve artifacts from in here.
+        // You should only use this when depending on other mods because
+        // Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
+        // See https://docs.gradle.org/current/userguide/declaring_repositories.html
+        // for more information about repositories.
+    }
 
-	// Fabric API. This is technically optional, but you probably want it anyway.
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    dependencies {
+        minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+        // The following line declares the mojmap mappings, you may use other mappings as well
+        mappings loom.officialMojangMappings()
+        // The following line declares the yarn mappings you may select this one as well.
+        // mappings "net.fabricmc:yarn:1.16.5+build.9:v2"
+    }
 
-	// PSA: Some older mods, compiled on Loom 0.2.1, might have outdated Maven POMs.
-	// You may need to force-disable transitiveness on them.
+    tasks.withType(JavaCompile) {
+        options.encoding = "UTF-8"
 
-	// Protobuf/gRPC dependencies - we need to shadow these so they don't conflict
-	// with the built-in libraries.
-	shade "io.grpc:grpc-protobuf:${grpcVersion}"
-	shade "io.grpc:grpc-stub:${grpcVersion}"
-	shade "io.grpc:grpc-netty-shaded:${grpcVersion}"
-	shade "com.google.guava:guava:29.0-jre"
+        // The Minecraft launcher currently installs Java 8 for users, so your mod probably wants to target Java 8 too
+        // JDK 9 introduced a new way of specifying this that will make sure no newer classes or methods are used.
+        // We'll use that if it's available, but otherwise we'll use the older option.
 
-    // This is used by MC, so we cheat and say it's a part of the implementation,
-    // so nothing tries to include it but we can still compile against it.
-    modImplementation "javax.annotation:javax.annotation-api:1.3.2"
-}
+        def targetVersion = 8
+        if (JavaVersion.current().isJava9Compatible()) {
+            options.release = targetVersion
+        }
+    }
 
-protobuf {
-	protoc { artifact = "com.google.protobuf:protoc:${protocVersion}" }
-	plugins {
-		grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" }
-	}
-	generateProtoTasks {
-		all()*.plugins { grpc {} }
-	}
-}
-
-// Tell IDEs where to find the generated sources for Protobuf/gRPC code
-sourceSets {
-	main {
-		java {
-			srcDirs 'build/generated/source/proto/main/grpc'
-			srcDirs 'build/generated/source/proto/main/java'
-		}
-	}
-}
-
-processResources {
-	inputs.property "version", project.version
-
-	from(sourceSets.main.resources.srcDirs) {
-		include "fabric.mod.json"
-		expand "version": project.version
-	}
-
-	from(sourceSets.main.resources.srcDirs) {
-		exclude "fabric.mod.json"
-	}
-}
-
-// ensure that the encoding is set to UTF-8, no matter what the system default is
-// this fixes some edge cases with special characters not displaying correctly
-// see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
-tasks.withType(JavaCompile) {
-	options.encoding = "UTF-8"
-}
-
-// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-// if it is present.
-// If you remove this task, sources will not be generated.
-task sourcesJar(type: Jar, dependsOn: classes) {
-	classifier = "sources"
-	from sourceSets.main.allSource
-}
-
-jar {
-	from "LICENSE"
-}
-
-shadowJar {
-	configurations = [project.configurations.shade]
-
-	relocate "com.google", "io.coded.com.google"
-	relocate "google", "io.coded.google"
-	relocate "org.checkerframework", "io.coded.org.checkerframework"
-	//relocate "io.grpc", "io.coded.io.grpc"
-
-    //relocate "javax", "io.coded.javax"
-
-    mergeServiceFiles()
-}
-
-// This task needs to be used rather than shadowJar or jar, or various problems will happen.
-task remapShadowJar(type: RemapJarTask, dependsOn: tasks.shadowJar) {
-    input = tasks.shadowJar.archivePath
-    addNestedDependencies = true
-}
-
-// configure the maven publication
-publishing {
-	publications {
-		mavenJava(MavenPublication) {
-			// add all the jars that should be included when publishing to maven
-			artifact(remapJar) {
-				builtBy remapJar
-			}
-			artifact(sourcesJar) {
-				builtBy remapSourcesJar
-			}
-		}
-	}
-
-	// select the repositories you want to publish to
-	repositories {
-		// uncomment to publish to the local maven
-		// mavenLocal()
-	}
+    java {
+        withSourcesJar()
+    }
 }

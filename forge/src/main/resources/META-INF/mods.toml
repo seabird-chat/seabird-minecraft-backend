@@ -1,0 +1,35 @@
+modLoader = "javafml"
+loaderVersion = "[35,)"
+#issueTrackerURL = ""
+license = "MIT"
+
+[[mods]]
+modId = "seabird_minecraft_backend"
+version = "${version}"
+displayName = "Seabird Minecraft Backend"
+authors = "belak"
+description = '''
+A chat backend to export a Minecraft server as a chat channel
+'''
+#logoFile = ""
+
+[[dependencies.seabird_minecraft_backend]]
+modId = "forge"
+mandatory = true
+versionRange = "[35,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.seabird_minecraft_backend]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.16.2,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.seabird_minecraft_backend]]
+modId = "architectury"
+mandatory = true
+versionRange = "[1.1.55,)"
+ordering = "AFTER"
+side = "BOTH"

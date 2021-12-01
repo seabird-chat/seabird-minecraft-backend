@@ -1,10 +1,20 @@
 pluginManagement {
     repositories {
-        jcenter()
-        maven {
-            name = 'Fabric'
-            url = 'https://maven.fabricmc.net/'
-        }
         gradlePluginPortal()
+        mavenCentral {}
+        maven { url "https://maven.fabricmc.net/" }
+        maven { url "https://maven.architectury.dev/" }
+        maven {
+            url "https://maven.minecraftforge.net/"
+            content {
+                excludeGroupByRegex "org\\.eclipse.*"
+            }
+        }
     }
 }
+
+include("common")
+include("fabric")
+//include("forge")
+
+rootProject.name = "seabird-minecraft-backend"
