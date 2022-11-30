@@ -4,8 +4,8 @@ import com.google.gson.Gson;
 import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.context.CommandContextBuilder;
 import com.mojang.brigadier.context.ParsedCommandNode;
-import com.mojang.brigadier.tree.CommandNode;
 import dev.architectury.event.EventResult;
+import dev.architectury.networking.NetworkManager;
 import io.coded.seabird.chat_ingest.ChatIngestGrpc;
 import io.coded.seabird.chat_ingest.SeabirdChatIngest;
 import io.coded.seabird.common.Common;
@@ -22,16 +22,15 @@ import net.minecraft.Util;
 import net.minecraft.advancements.Advancement;
 import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.ChatType;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
-import net.minecraft.network.protocol.game.ClientboundChatPacket;
+import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -70,8 +69,8 @@ public class SeabirdMod {
             return EventResult.pass();
         });
 
-        ChatEvent.SERVER.register((player, message, component) -> {
-            SeabirdMod.onMessage(player, message.getRaw(), component);
+        ChatEvent.RECEIVED.register((player, component) -> {
+            SeabirdMod.onMessage(player, component);
             return EventResult.pass();
         });
     }
@@ -178,7 +177,7 @@ public class SeabirdMod {
         SeabirdMod.outgoingQueue.push(event);
     }
 
-    public static void onMessage(ServerPlayer player, String message, ChatEvent.ChatComponent component) {
+    public static void onMessage(ServerPlayer player, Component component) {
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
@@ -186,7 +185,7 @@ public class SeabirdMod {
                                 .setUser(Common.User.newBuilder()
                                         .setId(player.getStringUUID())
                                         .setDisplayName(player.getScoreboardName())))
-                        .setText(message)).build();
+                        .setText(component.getString())).build();
 
         SeabirdMod.outgoingQueue.push(event);
     }
@@ -209,18 +208,16 @@ public class SeabirdMod {
         String argument = nodes.get(1).getRange().get(results.getReader());
 
         switch (commandName) {
-            case "me":
+            case "me" -> {
                 Entity entity = src.getEntity();
-                if (entity == null || !(entity instanceof ServerPlayer)) {
+                if (!(entity instanceof ServerPlayer player)) {
                     return;
                 }
-                ServerPlayer player = (ServerPlayer) entity;
-
                 onEmote(player, argument);
-                return;
-            case "say":
+            }
+            case "say" -> {
                 onSystemMessage(src.getDisplayName().getString(), argument);
-                return;
+            }
         }
     }
 
@@ -332,8 +329,8 @@ public class SeabirdMod {
 
     private static void sendToAll(String key, Object... args) {
         MinecraftServer server = GameInstance.getServer();
-        Component component = new TranslatableComponent(key, args);
-        Packet<ClientGamePacketListener> packet = new ClientboundChatPacket(component, ChatType.CHAT, Util.NIL_UUID);
+        Component component = Component.translatable(key, args);
+        Packet<ClientGamePacketListener> packet = new ClientboundSystemChatPacket(component, false);
         server.getPlayerList().broadcastAll(packet);
     }
 
