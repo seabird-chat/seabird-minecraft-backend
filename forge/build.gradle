@@ -2,17 +2,26 @@ plugins {
     id "com.github.johnrengelman.shadow" version "7.0.0"
 }
 
-configurations {
-    shadowCommon // Don't use shadow from the shadow plugin because we don't want IDEA to index this.
-}
-
 architectury {
     platformSetupLoomIde()
     forge()
 }
 
 loom {
-    useFabricMixin = true
+    accessWidenerPath = project(":common").loom.accessWidenerPath
+
+    forge {
+        convertAccessWideners = true
+        extraAccessWideners.add loom.accessWidenerPath.get().asFile.name
+    }
+}
+
+configurations {
+    common
+    shadowCommon // Don't use shadow from the shadow plugin because we don't want IDEA to index this.
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentForge.extendsFrom common
 }
 
 dependencies {
@@ -32,15 +41,8 @@ dependencies {
     shadowCommon "io.grpc:grpc-netty-shaded:${rootProject.grpc_version}"
     shadowCommon "com.google.guava:guava:29.0-jre"
 
-    implementation(project(path: ":common")) {
-        transitive = false
-    }
-    developmentForge(project(path: ":common")) {
-        transitive = false
-    }
-    shadowCommon(project(path: ":common", configuration: "transformProductionForge")) {
-        transitive = false
-    }
+    common(project(path: ":common", configuration: "namedElements")) { transitive false }
+    shadowCommon(project(path: ":common", configuration: "transformProductionForge")) { transitive = false }
 }
 
 processResources {
@@ -53,8 +55,10 @@ processResources {
 
 shadowJar {
     exclude "fabric.mod.json"
+    exclude "architectury.common.json"
 
     configurations = [project.configurations.shadowCommon]
+    classifier "dev-shadow"
 
     // Relocate files which may conflict with built-in MC libraries
     relocate "com.google", "io.coded.vendor.com.google"
@@ -64,22 +68,16 @@ shadowJar {
     //relocate "javax", "io.coded.vendor.javax"
 
     mergeServiceFiles()
-
-    classifier "dev-shadow"
 }
 
 remapJar {
     input.set shadowJar.archiveFile
     dependsOn shadowJar
-    classifier "forge"
+    classifier null
 }
 
 jar {
     classifier "dev"
-}
-
-java {
-    withSourcesJar()
 }
 
 sourcesJar {
@@ -88,17 +86,18 @@ sourcesJar {
     from commonSources.archiveFile.map { zipTree(it) }
 }
 
+components.java {
+    withVariantsFromConfiguration(project.configurations.shadowRuntimeElements) {
+        skip()
+    }
+}
+
+
 publishing {
     publications {
         mavenForge(MavenPublication) {
             artifactId = rootProject.archives_base_name + "-" + project.name
-            // add all the jars that should be included when publishing to maven
-            artifact(remapJar) {
-                classifier null
-            }
-            artifact(sourcesJar) {
-                builtBy remapSourcesJar
-            }
+            from components.java
         }
     }
 
