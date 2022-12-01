@@ -59,7 +59,7 @@ shadowJar {
     relocate "com.google", "io.coded.vendor.com.google"
     relocate "google", "io.coded.vendor.google"
     relocate "org.checkerframework", "io.coded.vendor.org.checkerframework"
-    //relocate "io.grpc", "io.coded.vendor.io.grpc"
+    relocate "io.grpc", "io.coded.vendor.io.grpc"
     //relocate "javax", "io.coded.vendor.javax"
 
     mergeServiceFiles()
