@@ -6,6 +6,8 @@ license = "MIT"
 [[mods]]
 modId = "seabird_minecraft_backend"
 version = "${version}"
+serverSideOnly = true
+acceptableRemoteVersions = "*"
 displayName = "Seabird Minecraft Backend"
 authors = "belak"
 description = '''

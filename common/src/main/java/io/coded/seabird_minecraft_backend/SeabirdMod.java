@@ -265,7 +265,7 @@ public class SeabirdMod {
                         // This backend only supports SEND_MESSAGE.
                         if (event.getInnerCase() == SeabirdChatIngest.ChatRequest.InnerCase.SEND_MESSAGE) {
                             SeabirdChatIngest.SendMessageChatRequest req = event.getSendMessage();
-                            SeabirdMod.sendToAll("chat.type.announcement", "seabird", req.getText());
+                            SeabirdMod.sendToAll("chat.type.text", "seabird", req.getText());
                             success = true;
                         } else {
                             LOGGER.warn("Unknown or unsupported request type");
