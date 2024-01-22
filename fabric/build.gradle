@@ -1,5 +1,5 @@
 plugins {
-    id "com.github.johnrengelman.shadow" version "7.1.2"
+    id "com.github.johnrengelman.shadow" version "8.1.1"
 }
 
 architectury {
@@ -53,7 +53,7 @@ shadowJar {
     exclude "architectury.common.json"
 
     configurations = [project.configurations.shadowCommon]
-    classifier "dev-shadow"
+    archiveClassifier = "dev-shadow"
 
     // Relocate files which may conflict with built-in MC libraries
     relocate "com.google", "io.coded.vendor.com.google"
@@ -69,17 +69,23 @@ remapJar {
     injectAccessWidener = true
     input.set shadowJar.archiveFile
     dependsOn shadowJar
-    classifier null
+    // archiveClassifier = null
 }
 
-jar {
-    classifier "dev"
-}
+// jar {
+//    archiveClassifier = "dev"
+// }
 
 sourcesJar {
     def commonSources = project(":common").sourcesJar
     dependsOn commonSources
     from commonSources.archiveFile.map { zipTree(it) }
+}
+
+components.java {
+    withVariantsFromConfiguration(project.configurations.shadowRuntimeElements) {
+        skip()
+    }
 }
 
 publishing {
