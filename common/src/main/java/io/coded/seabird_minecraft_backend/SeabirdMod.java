@@ -5,7 +5,6 @@ import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.context.CommandContextBuilder;
 import com.mojang.brigadier.context.ParsedCommandNode;
 import dev.architectury.event.EventResult;
-import dev.architectury.networking.NetworkManager;
 import io.coded.seabird.chat_ingest.ChatIngestGrpc;
 import io.coded.seabird.chat_ingest.SeabirdChatIngest;
 import io.coded.seabird.common.Common;
@@ -18,24 +17,23 @@ import dev.architectury.event.events.common.EntityEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.platform.Platform;
 import dev.architectury.utils.GameInstance;
-import net.minecraft.advancement.Advancement;
-import net.minecraft.advancement.AdvancementDisplay;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.listener.ClientPlayPacketListener;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.s2c.play.GameMessageS2CPacket;
+import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.DisplayInfo;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.FileReader;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
@@ -59,8 +57,8 @@ public class SeabirdMod {
         PlayerEvent.PLAYER_ADVANCEMENT.register(SeabirdMod::onAdvancement);
 
         EntityEvent.LIVING_DEATH.register((entity, source) -> {
-            if (entity instanceof PlayerEntity) {
-                SeabirdMod.onPlayerDied((PlayerEntity) entity, source);
+            if (entity instanceof Player) {
+                SeabirdMod.onPlayerDied((Player) entity, source);
             }
             return EventResult.pass();
         });
@@ -105,14 +103,17 @@ public class SeabirdMod {
         }
     }
 
-    private static void onAdvancement(ServerPlayerEntity player, Advancement advancement) {
+    private static void onAdvancement(ServerPlayer player, AdvancementHolder advancementHolder) {
+        Advancement advancement = advancementHolder.value();
+
         // Recipes are reported as advancements, but we don't care about them - the easiest way to check for them is to
         // look for an id starting with minecraft:recipes/ or check if the DisplayInfo is null.
         //
         // Additionally, we need to make sure this is something we should announce in chat, otherwise VanillaTweaks
         // displays empty advancements all the time.
-        AdvancementDisplay display = advancement.getDisplay();
-        if (display == null || !display.shouldAnnounceToChat()) {
+        Component advancementName = advancement.name().orElse(null);
+        DisplayInfo display = advancement.display().orElse(null);
+        if (advancementName == null || display == null || !display.shouldAnnounceChat()) {
             return;
         }
 
@@ -125,15 +126,15 @@ public class SeabirdMod {
                                         .setDisplayName(SeabirdMod.config.systemDisplayName)))
                         .setText(String.format(
                                 "%s has made the advancement %s.",
-                                player.getNameForScoreboard(),
-                                advancement.getChatComponent().getString()
+                                player.getGameProfile().getName(),
+                                advancementName.getString()
                         ))).build();
 
         SeabirdMod.outgoingQueue.push(event);
     }
 
-    private static void onPlayerDied(PlayerEntity player, DamageSource source) {
-        Text message = source.getDeathMessage(player);
+    private static void onPlayerDied(Player player, DamageSource source) {
+        Component message = source.getLocalizedDeathMessage(player);
 
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
@@ -147,7 +148,7 @@ public class SeabirdMod {
         SeabirdMod.outgoingQueue.push(event);
     }
 
-    private static void onPlayerJoined(ServerPlayerEntity player) {
+    private static void onPlayerJoined(ServerPlayer player) {
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
@@ -155,12 +156,12 @@ public class SeabirdMod {
                                 .setUser(Common.User.newBuilder()
                                         .setId("SYSTEM")
                                         .setDisplayName(SeabirdMod.config.systemDisplayName)))
-                        .setText(String.format("%s joined the server.", player.getNameForScoreboard()))).build();
+                        .setText(String.format("%s joined the server.", player.getGameProfile().getName()))).build();
 
         SeabirdMod.outgoingQueue.push(event);
     }
 
-    private static void onPlayerLeft(ServerPlayerEntity player) {
+    private static void onPlayerLeft(ServerPlayer player) {
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
@@ -168,29 +169,29 @@ public class SeabirdMod {
                                 .setUser(Common.User.newBuilder()
                                         .setId("SYSTEM")
                                         .setDisplayName(SeabirdMod.config.systemDisplayName)))
-                        .setText(String.format("%s left the server.", player.getNameForScoreboard()))).build();
+                        .setText(String.format("%s left the server.", player.getGameProfile().getName()))).build();
 
         SeabirdMod.outgoingQueue.push(event);
     }
 
-    public static void onMessage(ServerPlayerEntity player, Text component) {
+    public static void onMessage(ServerPlayer player, Component component) {
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
                                 .setChannelId(SeabirdMod.config.backendChannel)
                                 .setUser(Common.User.newBuilder()
-                                        .setId(player.getUuidAsString())
-                                        .setDisplayName(player.getNameForScoreboard())))
+                                        .setId(player.getStringUUID())
+                                        .setDisplayName(player.getGameProfile().getName())))
                         .setText(component.getString())).build();
 
         SeabirdMod.outgoingQueue.push(event);
     }
 
     private static void onCommand(CommandPerformEvent event) {
-        ParseResults<ServerCommandSource> results = event.getResults();
-        CommandContextBuilder<ServerCommandSource> ctx = results.getContext();
+        ParseResults<CommandSourceStack> results = event.getResults();
+        CommandContextBuilder<CommandSourceStack> ctx = results.getContext();
 
-        List<ParsedCommandNode<ServerCommandSource>> nodes = ctx.getNodes();
+        List<ParsedCommandNode<CommandSourceStack>> nodes = ctx.getNodes();
 
         // Normally we'd check for 1, but because what we need only has 2 arguments (a literal and a command argument),
         // we can take a shortcut.
@@ -198,7 +199,7 @@ public class SeabirdMod {
             return;
         }
 
-        ServerCommandSource src = ctx.getSource();
+        CommandSourceStack src = ctx.getSource();
 
         String commandName = nodes.get(0).getNode().getName();
         String argument = nodes.get(1).getRange().get(results.getReader());
@@ -206,7 +207,7 @@ public class SeabirdMod {
         switch (commandName) {
             case "me" -> {
                 Entity entity = src.getEntity();
-                if (!(entity instanceof ServerPlayerEntity player)) {
+                if (!(entity instanceof ServerPlayer player)) {
                     return;
                 }
                 onEmote(player, argument);
@@ -217,14 +218,14 @@ public class SeabirdMod {
         }
     }
 
-    public static void onEmote(ServerPlayerEntity player, String message) {
+    public static void onEmote(ServerPlayer player, String message) {
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setAction(Common.ActionEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
                                 .setChannelId(SeabirdMod.config.backendChannel)
                                 .setUser(Common.User.newBuilder()
-                                        .setId(player.getUuidAsString())
-                                        .setDisplayName(player.getNameForScoreboard())))
+                                        .setId(player.getStringUUID())
+                                        .setDisplayName(player.getGameProfile().getName())))
                         .setText(message)).build();
 
         SeabirdMod.outgoingQueue.push(event);
@@ -324,10 +325,10 @@ public class SeabirdMod {
     }
 
     private static void sendToAll(String key, Object... args) {
+        // TODO: try to do the "right" thing re PlayerChatMessages
         MinecraftServer server = GameInstance.getServer();
-        Text component = Text.translatable(key, args);
-        Packet<ClientPlayPacketListener> packet = new GameMessageS2CPacket(component, false);
-        server.getPlayerManager().sendToAll(packet);
+        Component component = Component.translatable(key, args);
+        server.getPlayerList().broadcastSystemMessage(component, false);
     }
 
     static void sleepNoFail(long ms) {
