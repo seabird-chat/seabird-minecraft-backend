@@ -67,14 +67,14 @@ shadowJar {
 
 remapJar {
     injectAccessWidener = true
-    input.set shadowJar.archiveFile
+    input = shadowJar.archiveFile
     dependsOn shadowJar
-    // archiveClassifier = null
+    archiveClassifier = null
 }
 
-// jar {
-//    archiveClassifier = "dev"
-// }
+jar {
+    archiveClassifier = "dev"
+}
 
 sourcesJar {
     def commonSources = project(":common").sourcesJar
