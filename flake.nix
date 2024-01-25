@@ -14,8 +14,9 @@
           jdk = pkgs.jdk17;
         in
         {
-          devShells.default = pkgs.mkShell {
-            buildInputs = with pkgs; [
+          devShells.default = (pkgs.buildFHSUserEnv {
+            name = "seabird-minecraft-backend";
+            targetPkgs = pkgs: with pkgs; [
               jdk
               protobuf
               # customise the jdk which gradle uses by default
@@ -23,7 +24,7 @@
                 java = jdk;
               })
             ];
-          };
+          }).env;
         }
       );
 }
