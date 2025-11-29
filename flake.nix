@@ -37,7 +37,7 @@
           devShells.default =
             pkgs.mkShell {
               packages = with pkgs; [
-                pkgs.jdk17
+                pkgs.jdk21
                 pkgs.gradle_8
               ];
             };
