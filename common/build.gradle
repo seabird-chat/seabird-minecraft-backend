@@ -1,6 +1,14 @@
 plugins {
-    id "com.google.protobuf" version "0.8.12"
+    id "com.google.protobuf" version "0.9.4"
     id "java"
+}
+
+architectury {
+    common(rootProject.enabled_platforms.split(","))
+}
+
+loom {
+    accessWidenerPath = file("src/main/resources/seabird-minecraft-backend.accesswidener")
 }
 
 dependencies {
@@ -16,11 +24,8 @@ dependencies {
     implementation "io.grpc:grpc-protobuf:${rootProject.grpc_version}"
     implementation "io.grpc:grpc-stub:${rootProject.grpc_version}"
     implementation "io.grpc:grpc-netty-shaded:${rootProject.grpc_version}"
-    implementation "com.google.guava:guava:29.0-jre"
-}
-
-architectury {
-    common()
+    implementation "javax.annotation:javax.annotation-api:1.3.2"
+    implementation "com.google.guava:guava:31.1-jre"
 }
 
 protobuf {
@@ -33,19 +38,14 @@ protobuf {
     }
 }
 
-java {
-    withSourcesJar()
-}
+// We get a warning about processResources not depending on extractProto without this.
+processResources.dependsOn ':common:extractProto'
 
 publishing {
     publications {
         mavenCommon(MavenPublication) {
             artifactId = rootProject.archives_base_name
-            // add all the jars that should be included when publishing to maven
-            artifact remapJar
-            artifact(sourcesJar) {
-                builtBy remapSourcesJar
-            }
+            from components.java
         }
     }
 
@@ -54,3 +54,4 @@ publishing {
         // Add repositories to publish to here.
     }
 }
+

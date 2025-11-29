@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.context.CommandContextBuilder;
 import com.mojang.brigadier.context.ParsedCommandNode;
-import com.mojang.brigadier.tree.CommandNode;
 import dev.architectury.event.EventResult;
 import io.coded.seabird.chat_ingest.ChatIngestGrpc;
 import io.coded.seabird.chat_ingest.SeabirdChatIngest;
@@ -18,29 +17,23 @@ import dev.architectury.event.events.common.EntityEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.platform.Platform;
 import dev.architectury.utils.GameInstance;
-import net.minecraft.Util;
 import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.network.chat.ChatType;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.TranslatableComponent;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
-import net.minecraft.network.protocol.game.ClientboundChatPacket;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
-import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.FileReader;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
@@ -70,8 +63,8 @@ public class SeabirdMod {
             return EventResult.pass();
         });
 
-        ChatEvent.SERVER.register((player, message, component) -> {
-            SeabirdMod.onMessage(player, message.getRaw(), component);
+        ChatEvent.RECEIVED.register((player, component) -> {
+            SeabirdMod.onMessage(player, component);
             return EventResult.pass();
         });
     }
@@ -110,14 +103,17 @@ public class SeabirdMod {
         }
     }
 
-    private static void onAdvancement(ServerPlayer player, Advancement advancement) {
+    private static void onAdvancement(ServerPlayer player, AdvancementHolder advancementHolder) {
+        Advancement advancement = advancementHolder.value();
+
         // Recipes are reported as advancements, but we don't care about them - the easiest way to check for them is to
         // look for an id starting with minecraft:recipes/ or check if the DisplayInfo is null.
         //
         // Additionally, we need to make sure this is something we should announce in chat, otherwise VanillaTweaks
         // displays empty advancements all the time.
-        DisplayInfo display = advancement.getDisplay();
-        if (display == null || !display.shouldAnnounceChat()) {
+        Component advancementName = advancement.name().orElse(null);
+        DisplayInfo display = advancement.display().orElse(null);
+        if (advancementName == null || display == null || !display.shouldAnnounceChat()) {
             return;
         }
 
@@ -130,8 +126,8 @@ public class SeabirdMod {
                                         .setDisplayName(SeabirdMod.config.systemDisplayName)))
                         .setText(String.format(
                                 "%s has made the advancement %s.",
-                                player.getScoreboardName(),
-                                advancement.getChatComponent().getString()
+                                player.getGameProfile().getName(),
+                                advancementName.getString()
                         ))).build();
 
         SeabirdMod.outgoingQueue.push(event);
@@ -160,7 +156,7 @@ public class SeabirdMod {
                                 .setUser(Common.User.newBuilder()
                                         .setId("SYSTEM")
                                         .setDisplayName(SeabirdMod.config.systemDisplayName)))
-                        .setText(String.format("%s joined the server.", player.getScoreboardName()))).build();
+                        .setText(String.format("%s joined the server.", player.getGameProfile().getName()))).build();
 
         SeabirdMod.outgoingQueue.push(event);
     }
@@ -173,20 +169,20 @@ public class SeabirdMod {
                                 .setUser(Common.User.newBuilder()
                                         .setId("SYSTEM")
                                         .setDisplayName(SeabirdMod.config.systemDisplayName)))
-                        .setText(String.format("%s left the server.", player.getScoreboardName()))).build();
+                        .setText(String.format("%s left the server.", player.getGameProfile().getName()))).build();
 
         SeabirdMod.outgoingQueue.push(event);
     }
 
-    public static void onMessage(ServerPlayer player, String message, ChatEvent.ChatComponent component) {
+    public static void onMessage(ServerPlayer player, Component component) {
         SeabirdChatIngest.ChatEvent event = SeabirdChatIngest.ChatEvent.newBuilder()
                 .setMessage(Common.MessageEvent.newBuilder()
                         .setSource(Common.ChannelSource.newBuilder()
                                 .setChannelId(SeabirdMod.config.backendChannel)
                                 .setUser(Common.User.newBuilder()
                                         .setId(player.getStringUUID())
-                                        .setDisplayName(player.getScoreboardName())))
-                        .setText(message)).build();
+                                        .setDisplayName(player.getGameProfile().getName())))
+                        .setText(component.getString())).build();
 
         SeabirdMod.outgoingQueue.push(event);
     }
@@ -209,18 +205,16 @@ public class SeabirdMod {
         String argument = nodes.get(1).getRange().get(results.getReader());
 
         switch (commandName) {
-            case "me":
+            case "me" -> {
                 Entity entity = src.getEntity();
-                if (entity == null || !(entity instanceof ServerPlayer)) {
+                if (!(entity instanceof ServerPlayer player)) {
                     return;
                 }
-                ServerPlayer player = (ServerPlayer) entity;
-
                 onEmote(player, argument);
-                return;
-            case "say":
+            }
+            case "say" -> {
                 onSystemMessage(src.getDisplayName().getString(), argument);
-                return;
+            }
         }
     }
 
@@ -231,7 +225,7 @@ public class SeabirdMod {
                                 .setChannelId(SeabirdMod.config.backendChannel)
                                 .setUser(Common.User.newBuilder()
                                         .setId(player.getStringUUID())
-                                        .setDisplayName(player.getScoreboardName())))
+                                        .setDisplayName(player.getGameProfile().getName())))
                         .setText(message)).build();
 
         SeabirdMod.outgoingQueue.push(event);
@@ -268,7 +262,7 @@ public class SeabirdMod {
                         // This backend only supports SEND_MESSAGE.
                         if (event.getInnerCase() == SeabirdChatIngest.ChatRequest.InnerCase.SEND_MESSAGE) {
                             SeabirdChatIngest.SendMessageChatRequest req = event.getSendMessage();
-                            SeabirdMod.sendToAll("chat.type.announcement", "seabird", req.getText());
+                            SeabirdMod.sendToAll("chat.type.text", "seabird", req.getText());
                             success = true;
                         } else {
                             LOGGER.warn("Unknown or unsupported request type");
@@ -331,10 +325,10 @@ public class SeabirdMod {
     }
 
     private static void sendToAll(String key, Object... args) {
+        // TODO: try to do the "right" thing re PlayerChatMessages
         MinecraftServer server = GameInstance.getServer();
-        Component component = new TranslatableComponent(key, args);
-        Packet<ClientGamePacketListener> packet = new ClientboundChatPacket(component, ChatType.CHAT, Util.NIL_UUID);
-        server.getPlayerList().broadcastAll(packet);
+        Component component = Component.translatable(key, args);
+        server.getPlayerList().broadcastSystemMessage(component, false);
     }
 
     static void sleepNoFail(long ms) {
