@@ -1,30 +1,46 @@
 {
-  description = "A very basic flake";
-
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-23.11";
-    flake-utils.url = "github:numtide/flake-utils";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    treefmt-nix.url = "github:numtide/treefmt-nix";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem
-      (system:
-        let
-          pkgs = import nixpkgs { inherit system; };
-          jdk = pkgs.jdk17;
-        in
+  outputs =
+    inputs@{
+      self,
+      nixpkgs,
+      flake-parts,
+      ...
+    }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = nixpkgs.lib.systems.flakeExposed;
+
+      imports = [
+        inputs.treefmt-nix.flakeModule
+      ];
+
+      perSystem =
         {
-          devShells.default = (pkgs.buildFHSUserEnv {
-            name = "seabird-minecraft-backend";
-            targetPkgs = pkgs: with pkgs; [
-              jdk
-              protobuf
-              # customise the jdk which gradle uses by default
-              (callPackage gradle-packages.gradle_8 {
-                java = jdk;
-              })
-            ];
-          }).env;
-        }
-      );
+          pkgs,
+          system,
+          config,
+          lib,
+          ...
+        }:
+        {
+          treefmt = {
+            settings.programs.nixfmt.enable = true;
+            #settings.programs.google-java-format.enable = true;
+            settings.global.on-ummatched = "info";
+          };
+
+          devShells.default =
+            pkgs.mkShell {
+              packages = with pkgs; [
+                pkgs.jdk17
+                pkgs.gradle_8
+              ];
+            };
+        };
+    };
 }
