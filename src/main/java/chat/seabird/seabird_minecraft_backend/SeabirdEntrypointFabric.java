@@ -1,5 +1,5 @@
 //? fabric {
-package chat.seabird.seabird_minecraft_backend;
+/*package chat.seabird.seabird_minecraft_backend;
 
 import net.fabricmc.api.ModInitializer;
 import org.apache.logging.log4j.LogManager;
@@ -14,4 +14,4 @@ public class SeabirdEntrypointFabric implements ModInitializer {
         SeabirdEntrypointArchitectury.init();
     }
 }
-//?}
+*///?}

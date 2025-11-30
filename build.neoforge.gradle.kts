@@ -29,15 +29,29 @@ repositories {
     }
 }
 
+// Fix repository resolution for protobuf plugin - ensure NeoForged repo doesn't
+// override Maven Central. This is very cursed, but it works for now.
+afterEvaluate {
+    repositories {
+        // Find and configure the NeoForged repository to exclude protobuf artifacts
+        all {
+            if (this is MavenArtifactRepository && this.name == "NeoForged Releases") {
+                content {
+                    excludeGroup("com.google.protobuf")
+                    excludeGroup("io.grpc")
+                }
+            }
+        }
+    }
+}
+
 protobuf {
     protoc {
-        //artifact = "com.google.protobuf:protoc:${property("deps.protoc")}"
-        path = "/opt/homebrew/bin/protoc"
+        artifact = "com.google.protobuf:protoc:${property("deps.protoc")}"
     }
     plugins {
         id("grpc") {
-            //artifact = "io.grpc:protoc-gen-grpc-java:${property("deps.grpc")}"
-            path = "/opt/homebrew/bin/protoc-gen-grpc-java"
+            artifact = "io.grpc:protoc-gen-grpc-java:${property("deps.grpc")}"
         }
     }
     generateProtoTasks {
@@ -51,18 +65,17 @@ protobuf {
 }
 
 dependencies {
+    fun extDep(dep: String) {
+        implementation(dep)
+        jarJar(dep)
+    }
     implementation("dev.architectury:architectury-neoforge:${property("deps.architectury_api")}")
 
-    implementation("com.google.protobuf:protobuf-java:${property("deps.protoc")}")
-    implementation("io.grpc:grpc-protobuf:${property("deps.grpc")}")
-    implementation("io.grpc:grpc-stub:${property("deps.grpc")}")
-    implementation("io.grpc:grpc-netty-shaded:${property("deps.grpc")}")
-    //implementation("com.google.guava:guava:29.0-jre")
-    jarJar("com.google.protobuf:protobuf-java:${property("deps.protoc")}")
-    jarJar("io.grpc:grpc-protobuf:${property("deps.grpc")}")
-    jarJar("io.grpc:grpc-stub:${property("deps.grpc")}")
-    jarJar("io.grpc:grpc-netty-shaded:${property("deps.grpc")}")
-    //jarJar("com.google.guava:guava:29.0-jre")
+    extDep("com.google.protobuf:protobuf-java:${property("deps.protoc")}")
+    extDep("io.grpc:grpc-protobuf:${property("deps.grpc")}")
+    extDep("io.grpc:grpc-stub:${property("deps.grpc")}")
+    extDep("io.grpc:grpc-netty-shaded:${property("deps.grpc")}")
+    //jarJar(implementation("com.google.guava:guava:29.0-jre"))
 
     implementation("javax.annotation:javax.annotation-api:1.3.2")
 
