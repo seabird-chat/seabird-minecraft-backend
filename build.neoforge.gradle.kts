@@ -64,25 +64,6 @@ protobuf {
     }
 }
 
-dependencies {
-    fun extDep(dep: String) {
-        implementation(dep)
-        jarJar(dep)
-    }
-    implementation("dev.architectury:architectury-neoforge:${property("deps.architectury_api")}")
-
-    extDep("com.google.protobuf:protobuf-java:${property("deps.protoc")}")
-    extDep("io.grpc:grpc-protobuf:${property("deps.grpc")}")
-    extDep("io.grpc:grpc-stub:${property("deps.grpc")}")
-    extDep("io.grpc:grpc-netty-shaded:${property("deps.grpc")}")
-    //jarJar(implementation("com.google.guava:guava:29.0-jre"))
-
-    // Annotations needed by the generated protobufs
-    implementation("javax.annotation:javax.annotation-api:1.3.2")
-
-    //protobuf(files("src/main/proto/"))
-}
-
 neoForge {
     version = property("deps.neoforge") as String
 
@@ -103,6 +84,27 @@ neoForge {
             sourceSet(sourceSets.main.get())
         }
     }
+}
+
+dependencies {
+    fun extDep(dep: String) {
+        implementation(dep)
+        jarJar(dep)
+        dependencies.add("additionalRuntimeClasspath", dep)
+    }
+
+    implementation("dev.architectury:architectury-neoforge:${property("deps.architectury_api")}")
+
+    extDep("com.google.protobuf:protobuf-java:${property("deps.protoc")}")
+    extDep("io.grpc:grpc-protobuf:${property("deps.grpc")}")
+    extDep("io.grpc:grpc-stub:${property("deps.grpc")}")
+    extDep("io.grpc:grpc-netty-shaded:${property("deps.grpc")}")
+    //jarJar(implementation("com.google.guava:guava:29.0-jre"))
+
+    // Annotations needed by the generated protobufs
+    implementation("javax.annotation:javax.annotation-api:1.3.2")
+
+    //protobuf(files("src/main/proto/"))
 }
 
 java {
