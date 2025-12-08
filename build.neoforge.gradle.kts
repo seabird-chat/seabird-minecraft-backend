@@ -77,6 +77,7 @@ dependencies {
     extDep("io.grpc:grpc-netty-shaded:${property("deps.grpc")}")
     //jarJar(implementation("com.google.guava:guava:29.0-jre"))
 
+    // Annotations needed by the generated protobufs
     implementation("javax.annotation:javax.annotation-api:1.3.2")
 
     //protobuf(files("src/main/proto/"))
@@ -94,6 +95,12 @@ neoForge {
         register("server") {
             gameDirectory = file("../../run/")
             server()
+        }
+    }
+
+    mods {
+        register("seabird_minecraft_backend") {
+            sourceSet(sourceSets.main.get())
         }
     }
 }
