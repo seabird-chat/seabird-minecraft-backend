@@ -35,6 +35,8 @@ public class SeabirdMod {
 
     public static void init() {
         Thread grpcThread = new Thread(SeabirdMod::runGrpc, "Seabird gRPC Client");
+        // Don't keep the JVM alive after the server stops.
+        grpcThread.setDaemon(true);
         grpcThread.start();
     }
 
