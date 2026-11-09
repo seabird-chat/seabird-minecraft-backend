@@ -10,7 +10,6 @@ import dev.architectury.event.events.common.CommandPerformEvent;
 import dev.architectury.event.events.common.EntityEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import net.minecraft.advancements.Advancement;
-import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
@@ -78,16 +77,21 @@ public class SeabirdEntrypointArchitectury {
             PlayerLeftEvent event = new PlayerLeftEvent(playerName);
             SeabirdMod.onPlayerLeft(event);
         });
-        PlayerEvent.PLAYER_ADVANCEMENT.register((player, advancementHolder) -> {
-            Advancement advancement = advancementHolder.value();
-
+        PlayerEvent.PLAYER_ADVANCEMENT.register((player, advancementArg) -> {
             // Recipes are reported as advancements, but we don't care about them - the easiest way to check for them is to
             // look for an id starting with minecraft:recipes/ or check if the DisplayInfo is null.
             //
             // Additionally, we need to make sure this is something we should announce in chat, otherwise VanillaTweaks
             // displays empty advancements all the time.
+            //? if >=1.20.2 {
+            Advancement advancement = advancementArg.value();
             Component advancementName = advancement.name().orElse(null);
             DisplayInfo display = advancement.display().orElse(null);
+            //?} else {
+            /*Advancement advancement = advancementArg;
+            Component advancementName = advancement.getChatComponent();
+            DisplayInfo display = advancement.getDisplay();
+            *///?}
 
             boolean shouldAnnounce = display != null && display.shouldAnnounceChat();
             if (!shouldAnnounce || advancementName == null) {
