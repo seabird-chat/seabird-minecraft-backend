@@ -3,6 +3,7 @@ import com.google.protobuf.gradle.id
 plugins {
     id("fabric-loom")
     id("com.google.protobuf")
+    id("com.gradleup.shadow")
 }
 
 version = "${property("mod.version")}+${stonecutter.current.version}-fabric"
@@ -13,6 +14,19 @@ val requiredJava = when {
     stonecutter.eval(stonecutter.current.version, ">=1.18") -> JavaVersion.VERSION_17
     stonecutter.eval(stonecutter.current.version, ">=1.17") -> JavaVersion.VERSION_16
     else -> JavaVersion.VERSION_1_8
+}
+
+// Libraries bundled into the mod jar and relocated so they can't conflict
+// with copies from other mods. Minecraft already provides guava and gson.
+val shade: Configuration by configurations.creating {
+    exclude(group = "com.google.guava")
+    exclude(group = "com.google.code.gson")
+    exclude(group = "com.google.code.findbugs")
+    exclude(group = "com.google.errorprone")
+    exclude(group = "com.google.j2objc")
+    exclude(group = "com.google.android")
+    exclude(group = "org.checkerframework")
+    exclude(group = "org.codehaus.mojo")
 }
 
 repositories {
@@ -50,16 +64,15 @@ dependencies {
     modImplementation("net.fabricmc.fabric-api:fabric-api:${property("deps.fabric_api")}")
     modImplementation("dev.architectury:architectury-fabric:${property("deps.architectury_api")}")
 
-    implementation("com.google.protobuf:protobuf-java:${property("deps.protoc")}")
-    implementation("io.grpc:grpc-protobuf:${property("deps.grpc")}")
-    implementation("io.grpc:grpc-stub:${property("deps.grpc")}")
-    implementation("io.grpc:grpc-netty-shaded:${property("deps.grpc")}")
-    implementation("com.google.guava:guava:29.0-jre")
-    include("com.google.protobuf:protobuf-java:${property("deps.protoc")}")
-    include("io.grpc:grpc-protobuf:${property("deps.grpc")}")
-    include("io.grpc:grpc-stub:${property("deps.grpc")}")
-    include("io.grpc:grpc-netty-shaded:${property("deps.grpc")}")
-    include("com.google.guava:guava:29.0-jre")
+    fun shadeDep(dep: String) {
+        implementation(dep)
+        shade(dep)
+    }
+
+    shadeDep("com.google.protobuf:protobuf-java:${property("deps.protoc")}")
+    shadeDep("io.grpc:grpc-protobuf:${property("deps.grpc")}")
+    shadeDep("io.grpc:grpc-stub:${property("deps.grpc")}")
+    shadeDep("io.grpc:grpc-okhttp:${property("deps.grpc")}")
     implementation("javax.annotation:javax.annotation-api:1.3.2")
 
     //protobuf(files("src/main/proto/"))
@@ -109,6 +122,30 @@ tasks {
 
         val mixinJava = "JAVA_${requiredJava.majorVersion}"
         filesMatching("*.mixins.json") { expand("java" to mixinJava) }
+    }
+
+    jar {
+        archiveClassifier = "dev"
+    }
+
+    shadowJar {
+        configurations.set(listOf(shade))
+        archiveClassifier = "dev-shadow"
+
+        relocate("io.grpc", "chat.seabird.vendor.io.grpc")
+        relocate("io.perfmark", "chat.seabird.vendor.io.perfmark")
+        relocate("okio", "chat.seabird.vendor.okio")
+        relocate("com.google.protobuf", "chat.seabird.vendor.com.google.protobuf")
+        // proto-google-common-protos
+        for (pkg in listOf("api", "cloud", "geo", "logging", "longrunning", "rpc", "type")) {
+            relocate("com.google.$pkg", "chat.seabird.vendor.com.google.$pkg")
+        }
+
+        mergeServiceFiles()
+    }
+
+    remapJar {
+        inputFile = shadowJar.flatMap { it.archiveFile }
     }
 
     // Builds the version into a shared folder in `build/libs/${mod version}/`
