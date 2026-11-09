@@ -3,15 +3,15 @@
   "id": "${id}",
   "version": "${version}",
   "name": "${name}",
-  "description": "This is an example description! Tell everyone what your mod is about!",
+  "description": "A chat backend to export a Minecraft server as a chat channel",
   "authors": [
-    "Me!"
+    "belak"
   ],
   "contact": {
-    "homepage": "https://stonecutter.kikugie.dev/",
-    "sources": "https://codeberg.org/stonecutter/template-fabric"
+    "homepage": "https://github.com/seabird-chat/",
+    "sources": "https://github.com/seabird-chat/seabird-minecraft-backend/"
   },
-  "license": "CC0-1.0",
+  "license": "MIT",
   "icon": "assets/template/icon.png",
   "environment": "*",
   "entrypoints": {
