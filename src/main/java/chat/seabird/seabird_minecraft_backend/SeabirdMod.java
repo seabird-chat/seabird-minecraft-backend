@@ -31,6 +31,9 @@ public class SeabirdMod {
     public static final String MOD_ID = "seabird_minecraft_backend";
     static final Logger LOGGER = LogManager.getLogger();
     static Config config = SeabirdMod.readConfig();
+    // Chat events are added to the back so they're sent in order. Stream errors
+    // go to the front so a dead stream is torn down before anything else is
+    // written to it.
     static LinkedBlockingDeque<Object> outgoingQueue = new LinkedBlockingDeque<>();
 
     // Proxies in front of seabird-core (Caddy 2.11.6+ defaults to 1m) drop
@@ -92,7 +95,7 @@ public class SeabirdMod {
                                 advancementEvent.getAdvancementName()
                         ))).build();
 
-        SeabirdMod.outgoingQueue.push(event);
+        SeabirdMod.outgoingQueue.addLast(event);
     }
 
     static void onPlayerDied(PlayerDiedEvent playerDiedEvent) {
@@ -105,7 +108,7 @@ public class SeabirdMod {
                                         .setDisplayName(SeabirdMod.config.systemDisplayName)))
                         .setText(playerDiedEvent.getDeathMessage())).build();
 
-        SeabirdMod.outgoingQueue.push(event);
+        SeabirdMod.outgoingQueue.addLast(event);
     }
 
     static void onPlayerJoined(PlayerJoinedEvent playerJoinedEvent) {
@@ -118,7 +121,7 @@ public class SeabirdMod {
                                         .setDisplayName(SeabirdMod.config.systemDisplayName)))
                         .setText(String.format("%s joined the server.", playerJoinedEvent.getPlayerName()))).build();
 
-        SeabirdMod.outgoingQueue.push(event);
+        SeabirdMod.outgoingQueue.addLast(event);
     }
 
     static void onPlayerLeft(PlayerLeftEvent playerLeftEvent) {
@@ -131,7 +134,7 @@ public class SeabirdMod {
                                         .setDisplayName(SeabirdMod.config.systemDisplayName)))
                         .setText(String.format("%s left the server.", playerLeftEvent.getPlayerName()))).build();
 
-        SeabirdMod.outgoingQueue.push(event);
+        SeabirdMod.outgoingQueue.addLast(event);
     }
 
     public static void onMessage(MessageReceivedEvent messageReceivedEvent) {
@@ -144,7 +147,7 @@ public class SeabirdMod {
                                         .setDisplayName(messageReceivedEvent.getPlayerName())))
                         .setText(messageReceivedEvent.getMessageText())).build();
 
-        SeabirdMod.outgoingQueue.push(event);
+        SeabirdMod.outgoingQueue.addLast(event);
     }
 
     static void onCommand(CommandEvent commandEvent) {
@@ -175,7 +178,7 @@ public class SeabirdMod {
                                         .setDisplayName(emoteEvent.getPlayerName())))
                         .setText(emoteEvent.getMessage())).build();
 
-        SeabirdMod.outgoingQueue.push(event);
+        SeabirdMod.outgoingQueue.addLast(event);
     }
 
     public static void onSystemMessage(SystemMessageEvent systemMessageEvent) {
@@ -188,7 +191,7 @@ public class SeabirdMod {
                                         .setDisplayName(systemMessageEvent.getSender())))
                         .setText(systemMessageEvent.getText())).build();
 
-        SeabirdMod.outgoingQueue.push(event);
+        SeabirdMod.outgoingQueue.addLast(event);
     }
 
     public static void runGrpc() {
@@ -219,21 +222,21 @@ public class SeabirdMod {
                         String id = event.getId();
                         if (!id.equals("")) {
                             if (success) {
-                                SeabirdMod.outgoingQueue.push(SeabirdChatIngest.ChatEvent.newBuilder().setId(id).setSuccess(SeabirdChatIngest.SuccessChatEvent.newBuilder()).build());
+                                SeabirdMod.outgoingQueue.addLast(SeabirdChatIngest.ChatEvent.newBuilder().setId(id).setSuccess(SeabirdChatIngest.SuccessChatEvent.newBuilder()).build());
                             } else {
-                                SeabirdMod.outgoingQueue.push(SeabirdChatIngest.ChatEvent.newBuilder().setId(id).setFailed(SeabirdChatIngest.FailedChatEvent.newBuilder()).build());
+                                SeabirdMod.outgoingQueue.addLast(SeabirdChatIngest.ChatEvent.newBuilder().setId(id).setFailed(SeabirdChatIngest.FailedChatEvent.newBuilder()).build());
                             }
                         }
                     }
 
                     @Override
                     public void onError(Throwable t) {
-                        SeabirdMod.outgoingQueue.push(t);
+                        SeabirdMod.outgoingQueue.addFirst(t);
                     }
 
                     @Override
                     public void onCompleted() {
-                        SeabirdMod.outgoingQueue.push(new Error("seabird-core ended the stream"));
+                        SeabirdMod.outgoingQueue.addFirst(new Error("seabird-core ended the stream"));
                     }
                 });
 
@@ -282,8 +285,14 @@ public class SeabirdMod {
     private static void sendToAll(String key, Object... args) {
         // TODO: try to do the "right" thing re PlayerChatMessages
         MinecraftServer server = GameInstance.getServer();
+        if (server == null) {
+            LOGGER.warn("Dropping message received while the server isn't running");
+            return;
+        }
+
+        // This is called from gRPC threads, so hand off to the server thread.
         Component component = Component.translatable(key, args);
-        server.getPlayerList().broadcastSystemMessage(component, false);
+        server.execute(() -> server.getPlayerList().broadcastSystemMessage(component, false));
     }
 
     static void sleepNoFail(long ms) {
