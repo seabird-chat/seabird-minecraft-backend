@@ -33,6 +33,10 @@ public class SeabirdMod {
     static Config config = SeabirdMod.readConfig();
     static LinkedBlockingDeque<Object> outgoingQueue = new LinkedBlockingDeque<>();
 
+    // Proxies in front of seabird-core (Caddy 2.11.6+ defaults to 1m) drop
+    // request streams that upload nothing for too long.
+    private static final long KEEPALIVE_SECONDS = 30;
+
     public static void init() {
         Thread grpcThread = new Thread(SeabirdMod::runGrpc, "Seabird gRPC Client");
         // Don't keep the JVM alive after the server stops.
@@ -243,7 +247,15 @@ public class SeabirdMod {
 
                     while (true) {
                         // Now that we're here, we need to wait for items on the queue, and push them out as chat events.
-                        Object event = SeabirdMod.outgoingQueue.take();
+                        Object event = SeabirdMod.outgoingQueue.poll(KEEPALIVE_SECONDS, TimeUnit.SECONDS);
+
+                        // There's no heartbeat message, but core ignores a
+                        // Success event that isn't tied to a request.
+                        if (event == null) {
+                            event = SeabirdChatIngest.ChatEvent.newBuilder()
+                                    .setSuccess(SeabirdChatIngest.SuccessChatEvent.newBuilder())
+                                    .build();
+                        }
 
                         if (event instanceof SeabirdChatIngest.ChatEvent) {
                             output.onNext((SeabirdChatIngest.ChatEvent) event);
